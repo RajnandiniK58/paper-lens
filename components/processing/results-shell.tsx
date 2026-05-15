@@ -21,7 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { FlashcardDeck } from "@/components/processing/flashcard-deck"
 import { usePaperlensStore } from "@/stores/paperlens-store"
 
 const container = {
@@ -231,19 +231,7 @@ export function ResultsShell() {
               </CardHeader>
               <CardContent>
                 {hasLiveData ? (
-                  <ScrollArea className="h-[min(360px,50vh)] pr-3">
-                    <ul className="space-y-3">
-                      {analysis.flashcards.map((fc, idx) => (
-                        <li
-                          key={`${idx}-${fc.question.slice(0, 24)}`}
-                          className="rounded-lg border border-border/70 bg-muted/20 p-3 text-sm"
-                        >
-                          <p className="font-medium text-foreground">{fc.question}</p>
-                          <p className="mt-1.5 text-muted-foreground">{fc.answer}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  </ScrollArea>
+                  <FlashcardDeck cards={analysis.flashcards} />
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {["Front / back pairs", "Difficulty tiers", "Distractor pool"].map(

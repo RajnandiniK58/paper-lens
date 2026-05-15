@@ -16,10 +16,11 @@ type ProcessingStageListProps = {
 
 export function ProcessingStageList({
   activeIndex,
-  progress: _progress,
+  progress,
   allComplete,
   className,
 }: ProcessingStageListProps) {
+  void progress
   return (
     <ol className={cn("space-y-2", className)}>
       {PIPELINE_STAGES.map((stage, i) => {

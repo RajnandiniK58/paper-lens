@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer"
 
-import { PDFParse } from "pdf-parse"
+// Import the implementation entry (not package root): root `index.js` runs a debug self-test when `!module.parent`, which breaks `next build`.
+import pdfParse from "pdf-parse/lib/pdf-parse.js"
 import { NextResponse } from "next/server"
 
 import { MAX_PDF_UPLOAD_BYTES } from "@/lib/paperlens-limits"
@@ -80,14 +81,9 @@ export async function POST(request: Request) {
   let pageCount = 0
 
   try {
-    const parser = new PDFParse({ data: new Uint8Array(buffer) })
-    try {
-      const textResult = await parser.getText()
-      text = textResult.text ?? ""
-      pageCount = textResult.total ?? textResult.pages?.length ?? 0
-    } finally {
-      await parser.destroy().catch(() => undefined)
-    }
+    const result = await pdfParse(buffer)
+    text = result.text ?? ""
+    pageCount = result.numpages ?? 0
   } catch (e) {
     console.error("[api/parse-pdf]", e)
     return jsonError(

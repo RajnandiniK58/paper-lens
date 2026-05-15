@@ -1,103 +1,116 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
-import { motion } from "framer-motion"
-import { MenuIcon } from "lucide-react"
-
+import { motion, AnimatePresence } from "framer-motion"
+import { Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet"
-import { cn } from "@/lib/utils"
 
-const nav = [
+const navLinks: Array<{
+  href: string
+  label: string
+  external?: boolean
+}> = [
   { href: "#upload", label: "Upload" },
-  { href: "#features", label: "Features" },
-  { href: "#preview", label: "Preview" },
+  { href: "#examples", label: "Examples" },
+  { href: "#how-it-works", label: "How It Works" },
+  { href: "https://github.com", label: "GitHub", external: true },
 ]
 
 export function Navbar() {
+  const [isOpen, setIsOpen] = useState(false)
+
   return (
-    <motion.header
-      initial={{ opacity: 0, y: -12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-      className="sticky top-0 z-50 border-b border-border/60 bg-background/75 backdrop-blur-xl"
-    >
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link
-          href="/"
-          className="flex items-center gap-2 font-medium tracking-tight text-foreground"
-        >
-          <span className="flex size-8 items-center justify-center rounded-lg bg-accent/20 ring-1 ring-accent/40">
-            <span className="size-2.5 rounded-full bg-accent shadow-[0_0_12px_oklch(0.65_0.15_220_/_0.65)]" />
-          </span>
-          <span className="text-sm sm:text-base">PaperLens AI</span>
-        </Link>
+    <header className="fixed top-0 left-0 right-0 z-50">
+      <nav className="mx-auto max-w-6xl px-4 py-4">
+        <div className="flex items-center justify-between rounded-2xl border border-border/50 bg-background/80 px-4 py-3 backdrop-blur-xl">
+          <Link href="/" className="text-lg font-semibold tracking-tight">
+            PaperLens<span className="text-accent">AI</span>
+          </Link>
 
-        <nav className="hidden items-center gap-1 md:flex">
-          {nav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors",
-                "hover:bg-muted/80 hover:text-foreground"
-              )}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+          <div className="hidden items-center gap-8 md:flex">
+            {navLinks.map((link) =>
+              link.external ? (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {link.label}
+                </Link>
+              )
+            )}
+          </div>
 
-        <div className="hidden items-center gap-2 md:flex">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="#features">Explore</Link>
-          </Button>
-          <Button size="sm" asChild>
-            <Link href="#upload">Try it free</Link>
-          </Button>
+          <div className="hidden items-center gap-2 md:flex">
+            <Button size="sm" asChild>
+              <Link href="#upload">Analyze</Link>
+            </Button>
+          </div>
+
+          <button
+            className="p-2 text-muted-foreground hover:text-foreground md:hidden"
+            onClick={() => setIsOpen(!isOpen)}
+            aria-label="Toggle menu"
+            type="button"
+          >
+            {isOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+          </button>
         </div>
 
-        <Sheet>
-          <div className="md:hidden">
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon-sm" aria-label="Open menu">
-                <MenuIcon />
-              </Button>
-            </SheetTrigger>
-          </div>
-          <SheetContent side="right" className="gap-0">
-            <SheetHeader className="border-b border-border text-left">
-              <SheetTitle>Menu</SheetTitle>
-            </SheetHeader>
-            <div className="flex flex-col gap-1 p-4">
-              {nav.map((item, i) => (
-                <motion.div
-                  key={item.href}
-                  initial={{ opacity: 0, x: 8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.05 * i, duration: 0.25 }}
-                >
-                  <Link
-                    href={item.href}
-                    className="block rounded-lg px-3 py-2.5 text-sm font-medium text-foreground hover:bg-muted"
-                  >
-                    {item.label}
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="mt-2 rounded-2xl border border-border bg-background/95 p-4 backdrop-blur-xl md:hidden"
+            >
+              <div className="flex flex-col gap-1">
+                {navLinks.map((link) =>
+                  link.external ? (
+                    <a
+                      key={link.href}
+                      href={link.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      {link.label}
+                    </a>
+                  ) : (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      className="py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      {link.label}
+                    </Link>
+                  )
+                )}
+                <Button className="mt-3 w-full" asChild>
+                  <Link href="#upload" onClick={() => setIsOpen(false)}>
+                    Analyze
                   </Link>
-                </motion.div>
-              ))}
-              <Button className="mt-4 w-full" asChild>
-                <Link href="#upload">Try it free</Link>
-              </Button>
-            </div>
-          </SheetContent>
-        </Sheet>
-      </div>
-    </motion.header>
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </nav>
+    </header>
   )
 }

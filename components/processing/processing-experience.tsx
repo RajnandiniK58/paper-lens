@@ -17,6 +17,10 @@ import { ProcessingStageList } from "@/components/processing/processing-stage-li
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { buildMockFallbackAnalysis } from "@/lib/analysis-fallback"
+import {
+  MIN_PASTED_PLAINTEXT_CHARS,
+  readAndClearPendingPlaintext,
+} from "@/lib/paperlens-plaintext-session"
 import { analyzeExtractedText, parsePdfToText } from "@/lib/paperlens-analyze-client"
 import {
   INITIAL_ETA_SECONDS,
@@ -65,6 +69,7 @@ export function ProcessingShell() {
   const searchParams = useSearchParams()
   const live = searchParams.get("live") === "1"
   const fileLabel = searchParams.get("file") ?? "research-paper.pdf"
+  const textMode = searchParams.get("source") === "text"
 
   const setAnalysis = usePaperlensStore((s) => s.setAnalysis)
   const clearPendingPdf = usePaperlensStore((s) => s.clearPendingPdf)
@@ -112,20 +117,26 @@ export function ProcessingShell() {
 
   React.useEffect(() => {
     if (live) return
-    setLogs([
-      {
-        id: nextLogId(),
-        message:
-          "Job accepted — priority lane allocated on regional inference mesh.",
-        at: Date.now(),
-      },
-      {
-        id: nextLogId(),
-        message: `Source artifact bound: “${fileLabel}”.`,
-        at: Date.now() - 400,
-      },
-    ])
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- demo bootstrap
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled) return
+      setLogs([
+        {
+          id: nextLogId(),
+          message:
+            "Job accepted — priority lane allocated on regional inference mesh.",
+          at: Date.now(),
+        },
+        {
+          id: nextLogId(),
+          message: `Source artifact bound: “${fileLabel}”.`,
+          at: Date.now() - 400,
+        },
+      ])
+    })
+    return () => {
+      cancelled = true
+    }
   }, [fileLabel, live])
 
   React.useEffect(() => {
@@ -177,134 +188,185 @@ export function ProcessingShell() {
     if (!live) return
     const ac = new AbortController()
     let cancelled = false
-    startedAt.current = performance.now()
-    lastEmittedStage.current = -1
-    extractedTextRef.current = ""
-    setLivePipelineError(null)
-    setProgress(4)
-    setEasedProgress(0.08)
-    setLogs([
-      {
-        id: nextLogId(),
-        message: `Live pipeline engaged for “${fileLabel}”.`,
-        at: Date.now(),
-      },
-    ])
 
-    const push = (message: string) => {
-      logCounter.current += 1
-      setLogs((prev) => [
+    queueMicrotask(() => {
+      if (cancelled) return
+      startedAt.current = performance.now()
+      lastEmittedStage.current = -1
+      extractedTextRef.current = ""
+      setLivePipelineError(null)
+      setProgress(4)
+      setEasedProgress(0.08)
+      setLogs([
         {
-          id: `log-${logCounter.current}`,
-          message,
+          id: nextLogId(),
+          message: `Live pipeline engaged for “${fileLabel}”.`,
           at: Date.now(),
         },
-        ...prev,
       ])
-    }
 
-    const finish = (
-      analysis: PaperLensAnalysis,
-      meta: { usedFallback: boolean; warning: string | null; name: string | null }
-    ) => {
-      setAnalysis(analysis, {
-        usedFallback: meta.usedFallback,
-        warning: meta.warning,
-        fileName: meta.name,
-      })
-      clearPendingPdf()
-      setProgress(100)
-      setEasedProgress(1)
-      push(
-        meta.usedFallback
-          ? "Returned structured fallback JSON — review banner on results."
-          : "Structured JSON validated — opening results workspace."
-      )
-      window.setTimeout(() => setIsExiting(true), 380)
-    }
-
-    ;(async () => {
-      const file = usePaperlensStore.getState().pendingPdfFile
-      if (!file) {
-        setLivePipelineError(
-          "No PDF found in session. Return home, select a file, and choose Start analysis."
-        )
-        push("Session missing PDF handle — cannot call /api/parse-pdf.")
-        finish(buildMockFallbackAnalysis("", "parse_error"), {
-          usedFallback: true,
-          warning: "No PDF in browser session.",
-          name: fileLabel,
-        })
-        return
+      const push = (message: string) => {
+        logCounter.current += 1
+        setLogs((prev) => [
+          {
+            id: `log-${logCounter.current}`,
+            message,
+            at: Date.now(),
+          },
+          ...prev,
+        ])
       }
 
-      try {
-        push("POST /api/parse-pdf — extracting plain text (pdf-parse, server).")
-        setProgress(12)
-        setEasedProgress(0.16)
-        const { text, pageCount } = await parsePdfToText(file, ac.signal)
-        if (cancelled) return
-        extractedTextRef.current = text
-        push(
-          `Text buffer ready: ${text.length.toLocaleString()} chars from ${pageCount || "?"} pages.`
-        )
-        setProgress(42)
-        setEasedProgress(0.48)
-        pushStageLogs("parse", setLogs, nextLogId)
-        window.setTimeout(() => {
-          if (!cancelled) pushStageLogs("sections", setLogs, nextLogId)
-        }, 200)
-        window.setTimeout(() => {
-          if (!cancelled) pushStageLogs("concepts", setLogs, nextLogId)
-        }, 450)
-
-        setProgress(58)
-        setEasedProgress(0.68)
-        push("POST /api/analyze — Gemini 2.5 Flash (JSON schema enforced).")
-        const analysis = await analyzeExtractedText(text, ac.signal)
-        if (cancelled) return
-        pushStageLogs("summary", setLogs, nextLogId)
-        window.setTimeout(() => {
-          if (!cancelled) pushStageLogs("map", setLogs, nextLogId)
-        }, 180)
-        window.setTimeout(() => {
-          if (!cancelled) pushStageLogs("cards", setLogs, nextLogId)
-        }, 360)
-        setProgress(92)
-        setEasedProgress(0.95)
-        finish(analysis, {
-          usedFallback: false,
-          warning: null,
-          name: file.name,
+      const finish = (
+        analysis: PaperLensAnalysis,
+        meta: { usedFallback: boolean; warning: string | null; name: string | null }
+      ) => {
+        setAnalysis(analysis, {
+          usedFallback: meta.usedFallback,
+          warning: meta.warning,
+          fileName: meta.name,
         })
-      } catch (e) {
-        if (cancelled) return
-        const excerpt = extractedTextRef.current
-        const isAfterParse = excerpt.length > 0
+        clearPendingPdf()
+        setProgress(100)
+        setEasedProgress(1)
         push(
-          `Pipeline error: ${e instanceof Error ? e.message : String(e)}`
+          meta.usedFallback
+            ? "Returned structured fallback JSON — review banner on results."
+            : "Structured JSON validated — opening results workspace."
         )
-        if (isAfterParse) {
-          finish(buildMockFallbackAnalysis(excerpt.slice(0, 4000), "model_error"), {
-            usedFallback: true,
-            warning: "AI analysis failed after text extraction; showing fallback content.",
-            name: file.name,
-          })
-        } else {
-          finish(buildMockFallbackAnalysis("", "parse_error"), {
-            usedFallback: true,
-            warning: "PDF extraction or network failed before analysis.",
-            name: file.name,
+        window.setTimeout(() => setIsExiting(true), 380)
+      }
+
+      ;(async () => {
+        const runAnalyze = async (text: string, resultFileLabel: string) => {
+          setProgress(58)
+          setEasedProgress(0.68)
+          push("POST /api/analyze — Gemini 2.5 Flash (JSON schema enforced).")
+          const analysis = await analyzeExtractedText(text, ac.signal)
+          if (cancelled) return
+          pushStageLogs("summary", setLogs, nextLogId)
+          window.setTimeout(() => {
+            if (!cancelled) pushStageLogs("map", setLogs, nextLogId)
+          }, 180)
+          window.setTimeout(() => {
+            if (!cancelled) pushStageLogs("cards", setLogs, nextLogId)
+          }, 360)
+          setProgress(92)
+          setEasedProgress(0.95)
+          finish(analysis, {
+            usedFallback: false,
+            warning: null,
+            name: resultFileLabel,
           })
         }
-      }
-    })()
+
+        if (textMode) {
+          const raw = readAndClearPendingPlaintext()
+          const text = raw?.trim() ?? ""
+          if (text.length < MIN_PASTED_PLAINTEXT_CHARS) {
+            setLivePipelineError(
+              `Paste at least ${MIN_PASTED_PLAINTEXT_CHARS} characters (abstract or excerpt) so the model has enough context.`
+            )
+            push("No pasted text found in session — return home and use “Run analysis”.")
+            finish(buildMockFallbackAnalysis("", "parse_error"), {
+              usedFallback: true,
+              warning: "Missing or too-short pasted text.",
+              name: fileLabel,
+            })
+            return
+          }
+          extractedTextRef.current = text
+          try {
+            push("Plain-text mode — using pasted content (skipping /api/parse-pdf).")
+            setProgress(24)
+            setEasedProgress(0.36)
+            push(
+              `Text buffer ready: ${text.length.toLocaleString()} characters (pasted).`
+            )
+            pushStageLogs("sections", setLogs, nextLogId)
+            window.setTimeout(() => {
+              if (!cancelled) pushStageLogs("concepts", setLogs, nextLogId)
+            }, 220)
+            setProgress(44)
+            setEasedProgress(0.52)
+            await runAnalyze(text, fileLabel)
+          } catch (e) {
+            if (cancelled) return
+            const excerpt = extractedTextRef.current
+            push(`Pipeline error: ${e instanceof Error ? e.message : String(e)}`)
+            finish(buildMockFallbackAnalysis(excerpt.slice(0, 4000), "model_error"), {
+              usedFallback: true,
+              warning: "AI analysis failed for pasted text.",
+              name: fileLabel,
+            })
+          }
+          return
+        }
+
+        const file = usePaperlensStore.getState().pendingPdfFile
+        if (!file) {
+          setLivePipelineError(
+            "No PDF found in session. Return home, select a file, and choose Start analysis."
+          )
+          push("Session missing PDF handle — cannot call /api/parse-pdf.")
+          finish(buildMockFallbackAnalysis("", "parse_error"), {
+            usedFallback: true,
+            warning: "No PDF in browser session.",
+            name: fileLabel,
+          })
+          return
+        }
+
+        try {
+          push("POST /api/parse-pdf — extracting plain text (pdf-parse, server).")
+          setProgress(12)
+          setEasedProgress(0.16)
+          const { text, pageCount } = await parsePdfToText(file, ac.signal)
+          if (cancelled) return
+          extractedTextRef.current = text
+          push(
+            `Text buffer ready: ${text.length.toLocaleString()} chars from ${pageCount || "?"} pages.`
+          )
+          setProgress(42)
+          setEasedProgress(0.48)
+          pushStageLogs("parse", setLogs, nextLogId)
+          window.setTimeout(() => {
+            if (!cancelled) pushStageLogs("sections", setLogs, nextLogId)
+          }, 200)
+          window.setTimeout(() => {
+            if (!cancelled) pushStageLogs("concepts", setLogs, nextLogId)
+          }, 450)
+
+          await runAnalyze(text, file.name)
+        } catch (e) {
+          if (cancelled) return
+          const excerpt = extractedTextRef.current
+          const isAfterParse = excerpt.length > 0
+          push(
+            `Pipeline error: ${e instanceof Error ? e.message : String(e)}`
+          )
+          if (isAfterParse) {
+            finish(buildMockFallbackAnalysis(excerpt.slice(0, 4000), "model_error"), {
+              usedFallback: true,
+              warning: "AI analysis failed after text extraction; showing fallback content.",
+              name: file.name,
+            })
+          } else {
+            finish(buildMockFallbackAnalysis("", "parse_error"), {
+              usedFallback: true,
+              warning: "PDF extraction or network failed before analysis.",
+              name: file.name,
+            })
+          }
+        }
+      })()
+    })
 
     return () => {
       cancelled = true
       ac.abort()
     }
-  }, [live, fileLabel, setAnalysis, clearPendingPdf])
+  }, [live, fileLabel, textMode, setAnalysis, clearPendingPdf])
 
   React.useEffect(() => {
     if (!isExiting) return
