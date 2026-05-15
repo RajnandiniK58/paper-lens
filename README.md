@@ -449,11 +449,35 @@ U can access it from:
 
 **Outputs**
 
+### Landing Page
+Main homepage showing the AI-powered research assistant interface and supported input methods.
 
 ![Landing Page](public/OUTPUT/Landing.png)
+
+---
+
+### Upload Workspace
+Workspace where users can upload PDFs, paste abstracts, or provide arXiv links for analysis.
+
 ![Upload Workspace](public/OUTPUT/Workspace.png)
+
+---
+
+### Analysis Results — Paper Difficulty & Core Insights
+Shows the detected difficulty level, AI-generated overview, executive summary, and extracted research concepts from the uploaded paper.
+
 ![Results Page](public/OUTPUT/Resultpage1.png)
+
+---
+
+### Analysis Results — Detailed Summary View
+Displays the structured paper breakdown with problem statement, methodology explanation, and beginner-friendly interpretation of the research.
+
 ![Results Page](public/OUTPUT/Resultpage2.png)
+
+---
+
+### Interactive Flashcards
+Expandable flashcards designed for active recall and research paper revision.
+
 ![Flashcards](public/OUTPUT/Flashcard.png)
-
-
